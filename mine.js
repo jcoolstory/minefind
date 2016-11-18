@@ -6,9 +6,9 @@ var Size = (function () {
 }());
 var BlockStatus;
 (function (BlockStatus) {
-    BlockStatus[BlockStatus["Close"] = 0] = "Close";
-    BlockStatus[BlockStatus["Open"] = 1] = "Open";
-    BlockStatus[BlockStatus["Checked"] = 2] = "Checked";
+    BlockStatus[BlockStatus["closed"] = 0] = "closed";
+    BlockStatus[BlockStatus["opened"] = 1] = "opened";
+    BlockStatus[BlockStatus["checked"] = 2] = "checked";
 })(BlockStatus || (BlockStatus = {}));
 var Point = (function () {
     function Point(x, y) {
@@ -30,20 +30,20 @@ var Util = (function () {
 var Block = (function () {
     function Block() {
         this.findMines = 0;
-        this.status = BlockStatus.Checked;
+        this.status = BlockStatus.checked;
         this.isMine = false;
         this.print = function () {
             console.log(this.status);
         };
         this.open = function () {
-            this.status = BlockStatus.Open;
+            this.status = BlockStatus.opened;
             this.OnStatausChange(this);
             if (this.isMine) {
                 return true;
             }
         };
         this.check = function () {
-            this.status = BlockStatus.Checked;
+            this.status = BlockStatus.checked;
             this.OnStatausChange(this);
         };
     }
@@ -54,7 +54,7 @@ var Table = (function () {
         var _this = this;
         this.findBlankBlock = function (x, y) {
             var _this = this;
-            if (this.table[x][y].status == BlockStatus.Open)
+            if (this.table[x][y].status == BlockStatus.opened)
                 return;
             if (this.table[x][y].isMine)
                 return;
@@ -151,8 +151,6 @@ var World = (function () {
             block.position = new Point(x, y);
             block.OnStatausChange = this.statusChange.bind(this);
             element.setAttribute("class", "block");
-            var number = document.createTextNode(this.map.table[x][y].findMines + '');
-            element.appendChild(number);
             element.addEventListener("click", function (evt) {
                 this.onClick(block, evt);
             }.bind(this));
@@ -185,7 +183,7 @@ var World = (function () {
     World.prototype.statusChange = function (block) {
         var element = this.elementMap[block.position.x][block.position.y];
         switch (block.status) {
-            case BlockStatus.Open:
+            case BlockStatus.opened:
                 if (block.isMine) {
                     var statusclass = "mine";
                 }
@@ -199,7 +197,7 @@ var World = (function () {
                 }
                 element.setAttribute("class", "block " + statusclass);
                 break;
-            case BlockStatus.Checked: {
+            case BlockStatus.checked: {
                 var statusclass = BlockStatus[block.status];
                 element.setAttribute("class", "block " + statusclass);
                 break;

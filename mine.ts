@@ -6,7 +6,7 @@ class Size {
 }
 
 enum BlockStatus {
-    Close, Open, Checked
+    closed, opened, checked
 }
 class Point {
 
@@ -27,7 +27,7 @@ class Util {
 class Block {
      position : Point ;
      findMines = 0;
-     status : BlockStatus = BlockStatus.Checked;
+     status : BlockStatus = BlockStatus.checked;
      isMine :boolean = false;
      
      OnStatausChange:Function;
@@ -36,14 +36,14 @@ class Block {
          console.log(this.status);
      };
      open = function(){
-         this.status = BlockStatus.Open;
+         this.status = BlockStatus.opened;
          this.OnStatausChange(this);
          if (this.isMine){            
             return true;
          }        
      };
      check = function(){
-         this.status = BlockStatus.Checked;
+         this.status = BlockStatus.checked;
          this.OnStatausChange(this);
      };    
      
@@ -116,7 +116,7 @@ class Table{
 
     public findBlankBlock = function(x:number, y:number){
         
-        if (this.table[x][y].status == BlockStatus.Open )
+        if (this.table[x][y].status == BlockStatus.opened )
             return;
 
         if (this.table[x][y].isMine)
@@ -186,7 +186,7 @@ class World{
             var th = document.createElement("tr");
             for (var i = 0 ; i < tableSize.x ; i++)
             {
-                var td = document.createElement("td");                
+                var td = document.createElement("td");
                 this.attachElement(td,j,i);
                 th.appendChild(td);
                 this.elementMap[j][i] = td;
@@ -203,8 +203,7 @@ class World{
          block.position = new Point(x,y);
          block.OnStatausChange = this.statusChange.bind(this);
          element.setAttribute("class","block");
-         var number = document.createTextNode(this.map.table[x][y].findMines+'')
-         element.appendChild(number);
+         
          element.addEventListener("click", function(evt){
              this.onClick(block,evt);
          }.bind(this));
@@ -214,7 +213,7 @@ class World{
          
          var element:Element = this.elementMap[block.position.x][block.position.y];
          switch(block.status){
-             case BlockStatus.Open:
+             case BlockStatus.opened:
                 if (block.isMine){
                     var statusclass = "mine";
 
@@ -228,7 +227,7 @@ class World{
                 }
                 element.setAttribute("class", "block " + statusclass);
                 break;
-            case BlockStatus.Checked:{
+            case BlockStatus.checked:{
                 var statusclass :string= BlockStatus[block.status]
                 element.setAttribute("class", "block " + statusclass);
                 break;

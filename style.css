@@ -16,5 +16,8 @@ mindfinder, tr, td{
 
 }
 .checked{
-
+    background: blue;
+}
+.mine{
+    background: red;
 }
