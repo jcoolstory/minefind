@@ -8,6 +8,11 @@ enum GameStatus{
     Running,Finish, Fail
 }
 
+//array iterate callback
+interface TraceFunc{
+    (source:Block,x:number,y:number): void;
+}
+
 class Point {
     x:number = 0;
     y:number = 0;
@@ -37,21 +42,23 @@ class Block {
      };
 
      public open = function(): Boolean{
+         var oldStatus : BlockStatus = this.status;
          this.status = BlockStatus.opened;
-         this.OnStatausChange(this);
+         
+         if (this.status != oldStatus)
+            this.OnStatausChange(this);
          if (this.isMine){            
             return true;
          }
      };
 
      public check = function():void{
+         var oldStatus : BlockStatus = this.status;
+         
          this.status = BlockStatus.checked;
-         this.OnStatausChange(this);
+         if (this.status != oldStatus)
+            this.OnStatausChange(this);
      };
-}
-
-interface TraceFunc{
-    (source:Block,x:number,y:number): void;
 }
 
 class Table{
@@ -71,27 +78,26 @@ class Table{
         var points : Point[] = [];
         var mineMaxCount = (size.x * size.y * mineRatio)|0;
         var mine =0;
+        
         while( mineMaxCount> mine){
 
-            var pos:Point = new Point(Util.randomInt(size.x),Util.randomInt(size.y));                        
-            
+            var pos:Point = new Point(Util.randomInt(size.x),Util.randomInt(size.y));
             var duplicated : Boolean = false;
 
             points.forEach(function(obj,int){                
-               if (pos.x == obj.x && pos.y == obj.y)               
+               if (pos.x == obj.x && pos.y == obj.y){
                     duplicated = true;
+                    return;
+               }
             });
 
             if (!duplicated)
             {
                 points[mine] = pos;
                 mine++;
+                this.table[pos.x][pos.y].isMine = true;   
             }
         }
-        
-        points.forEach(element => {
-            this.table[element.x][element.y].isMine = true;   
-        });
 
         for(var i=0 ; i< size.x; i++){
             for(var j= 0; j< size.y ; j++){
@@ -171,8 +177,6 @@ class Table{
     }
 
     private checkMineCount = function(x:number, y:number) {
-        var xpos = [x-1,x,x+1];
-        var ypos = [y-1,y,y+1];
 
         if (!this.table[x][y].isMine){
             return;
@@ -191,6 +195,13 @@ class Table{
             return true; 
     }
 
+    public doFail = function(){
+        this.traceElements((block:Block,x:number,y:number)=>{
+            if(block.status == BlockStatus.closed)
+                 block.open();
+        });
+    }
+
     public print = function() : void{
         for(var i=0 ; i < this.size.x;i++){
             for (var j=0 ; j < this.size.y;j++){
@@ -205,7 +216,7 @@ class World{
     public status: GameStatus = GameStatus.Running;
     private elementMap:Element[][]= [];
 
-    public init(element:Element) : void{
+    public init = function(element:Element) : void{
         
         var tableSize : Point = new Point(8,8);
         this.map = new Table(tableSize)
@@ -237,14 +248,14 @@ class World{
          var block = this.map.table[x][y];
          block.position = new Point(x,y);
          block.OnStatausChange = this.statusChange.bind(this);
-         element.setAttribute("class","block");
-         
+
+         element.setAttribute("class","block");         
          element.addEventListener("click", function(evt){
              this.onClick(block,evt);
          }.bind(this));
      }
 
-     private statusChange(block:Block) : void{
+     private statusChange = function(block:Block) : void{
          
          var element:Element = this.elementMap[block.position.x][block.position.y];
          switch(block.status){
@@ -270,7 +281,9 @@ class World{
         }
      }
 
-     private onClick(element:Block,evt:MouseEvent){
+     private onClick = function(element:Block,evt:MouseEvent){
+         if (this.status != GameStatus.Running)
+            return;
          switch(evt.button)
          {
              case 0:
@@ -280,7 +293,7 @@ class World{
                 else{
                     var result:Boolean = element.open();
                     if(result){
-                        this.Failed(element)
+                        this.Failed(this)
                     } 
                 }                
              break;
@@ -293,13 +306,13 @@ class World{
          }
      }
 
-     public Failed(block:Block){
+     public Failed = function(block:World){
         this.status == GameStatus.Fail;
+        this.map.doFail();
      }
 
-     public Finished(){
+     public Finished = function(){
          this.status == GameStatus.Finish;
-         console.log("Finish");
      }
 }
 

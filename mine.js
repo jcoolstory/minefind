@@ -37,22 +37,25 @@ var Block = (function () {
             console.log(this.status);
         };
         this.open = function () {
+            var oldStatus = this.status;
             this.status = BlockStatus.opened;
-            this.OnStatausChange(this);
+            if (this.status != oldStatus)
+                this.OnStatausChange(this);
             if (this.isMine) {
                 return true;
             }
         };
         this.check = function () {
+            var oldStatus = this.status;
             this.status = BlockStatus.checked;
-            this.OnStatausChange(this);
+            if (this.status != oldStatus)
+                this.OnStatausChange(this);
         };
     }
     return Block;
 }());
 var Table = (function () {
     function Table(size) {
-        var _this = this;
         this.traceElements = function (callbackFunc) {
             for (var y = 0; y < this.size.y; y++) {
                 for (var x = 0; x < this.size.x; x++) {
@@ -110,8 +113,6 @@ var Table = (function () {
         };
         this.checkMineCount = function (x, y) {
             var _this = this;
-            var xpos = [x - 1, x, x + 1];
-            var ypos = [y - 1, y, y + 1];
             if (!this.table[x][y].isMine) {
                 return;
             }
@@ -125,6 +126,12 @@ var Table = (function () {
                 return false;
             else
                 return true;
+        };
+        this.doFail = function () {
+            this.traceElements(function (block, x, y) {
+                if (block.status == BlockStatus.closed)
+                    block.open();
+            });
         };
         this.print = function () {
             for (var i = 0; i < this.size.x; i++) {
@@ -148,17 +155,17 @@ var Table = (function () {
             var pos = new Point(Util.randomInt(size.x), Util.randomInt(size.y));
             var duplicated = false;
             points.forEach(function (obj, int) {
-                if (pos.x == obj.x && pos.y == obj.y)
+                if (pos.x == obj.x && pos.y == obj.y) {
                     duplicated = true;
+                    return;
+                }
             });
             if (!duplicated) {
                 points[mine] = pos;
                 mine++;
+                this.table[pos.x][pos.y].isMine = true;
             }
         }
-        points.forEach(function (element) {
-            _this.table[element.x][element.y].isMine = true;
-        });
         for (var i = 0; i < size.x; i++) {
             for (var j = 0; j < size.y; j++) {
                 this.checkMineCount(i, j);
@@ -171,6 +178,27 @@ var World = (function () {
     function World() {
         this.status = GameStatus.Running;
         this.elementMap = [];
+        this.init = function (element) {
+            var tableSize = new Point(8, 8);
+            this.map = new Table(tableSize);
+            for (var i = 0; i < tableSize.y; i++) {
+                this.elementMap[i] = [];
+            }
+            var tableEl = document.createElement("table");
+            tableEl.setAttribute("class", "minefinder");
+            for (var j = 0; j < tableSize.y; j++) {
+                var th = document.createElement("tr");
+                for (var i = 0; i < tableSize.x; i++) {
+                    var td = document.createElement("td");
+                    this.attachElement(td, j, i);
+                    th.appendChild(td);
+                    this.elementMap[j][i] = td;
+                }
+                tableEl.appendChild(th);
+            }
+            var el = document.body.appendChild(tableEl);
+            element.appendChild(tableEl);
+        };
         this.attachElement = function (element, x, y) {
             var block = this.map.table[x][y];
             block.position = new Point(x, y);
@@ -180,80 +208,61 @@ var World = (function () {
                 this.onClick(block, evt);
             }.bind(this));
         };
-    }
-    World.prototype.init = function (element) {
-        var tableSize = new Point(8, 8);
-        this.map = new Table(tableSize);
-        for (var i = 0; i < tableSize.y; i++) {
-            this.elementMap[i] = [];
-        }
-        var tableEl = document.createElement("table");
-        tableEl.setAttribute("class", "minefinder");
-        for (var j = 0; j < tableSize.y; j++) {
-            var th = document.createElement("tr");
-            for (var i = 0; i < tableSize.x; i++) {
-                var td = document.createElement("td");
-                this.attachElement(td, j, i);
-                th.appendChild(td);
-                this.elementMap[j][i] = td;
-            }
-            tableEl.appendChild(th);
-        }
-        var el = document.body.appendChild(tableEl);
-        element.appendChild(tableEl);
-    };
-    World.prototype.statusChange = function (block) {
-        var element = this.elementMap[block.position.x][block.position.y];
-        switch (block.status) {
-            case BlockStatus.opened:
-                if (block.isMine) {
-                    var statusclass = "mine";
-                }
-                else if (block.findMines == 0) {
-                    var statusclass = BlockStatus[block.status];
-                }
-                else {
-                    var statusclass = BlockStatus[block.status];
-                    var text = document.createTextNode(block.findMines + '');
-                    element.appendChild(text);
-                }
-                element.setAttribute("class", "block " + statusclass);
-                break;
-            case BlockStatus.checked: {
-                var statusclass = BlockStatus[block.status];
-                element.setAttribute("class", "block " + statusclass);
-                break;
-            }
-        }
-    };
-    World.prototype.onClick = function (element, evt) {
-        switch (evt.button) {
-            case 0:
-                if (element.findMines == 0 && !element.isMine) {
-                    this.map.findBlankBlock(element.position.x, element.position.y);
-                }
-                else {
-                    var result = element.open();
-                    if (result) {
-                        this.Failed(element);
+        this.statusChange = function (block) {
+            var element = this.elementMap[block.position.x][block.position.y];
+            switch (block.status) {
+                case BlockStatus.opened:
+                    if (block.isMine) {
+                        var statusclass = "mine";
                     }
+                    else if (block.findMines == 0) {
+                        var statusclass = BlockStatus[block.status];
+                    }
+                    else {
+                        var statusclass = BlockStatus[block.status];
+                        var text = document.createTextNode(block.findMines + '');
+                        element.appendChild(text);
+                    }
+                    element.setAttribute("class", "block " + statusclass);
+                    break;
+                case BlockStatus.checked: {
+                    var statusclass = BlockStatus[block.status];
+                    element.setAttribute("class", "block " + statusclass);
+                    break;
                 }
-                break;
-            case 1:
-                element.check();
-                break;
-        }
-        if (this.map.checkFinished()) {
-            this.Finished();
-        }
-    };
-    World.prototype.Failed = function (block) {
-        this.status == GameStatus.Fail;
-    };
-    World.prototype.Finished = function () {
-        this.status == GameStatus.Finish;
-        console.log("Finish");
-    };
+            }
+        };
+        this.onClick = function (element, evt) {
+            if (this.status != GameStatus.Running)
+                return;
+            switch (evt.button) {
+                case 0:
+                    if (element.findMines == 0 && !element.isMine) {
+                        this.map.findBlankBlock(element.position.x, element.position.y);
+                    }
+                    else {
+                        var result = element.open();
+                        if (result) {
+                            this.Failed(this);
+                        }
+                    }
+                    break;
+                case 1:
+                    element.check();
+                    break;
+            }
+            if (this.map.checkFinished()) {
+                this.Finished();
+            }
+        };
+        this.Failed = function (block) {
+            this.status == GameStatus.Fail;
+            this.map.doFail();
+        };
+        this.Finished = function () {
+            this.status == GameStatus.Finish;
+        };
+    }
     return World;
 }());
 function run() {
