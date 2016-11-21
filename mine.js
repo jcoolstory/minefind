@@ -1,15 +1,16 @@
-var mineRatio = 0.2;
-var Size = (function () {
-    function Size() {
-    }
-    return Size;
-}());
+var mineRatio = 0.1;
 var BlockStatus;
 (function (BlockStatus) {
     BlockStatus[BlockStatus["closed"] = 0] = "closed";
     BlockStatus[BlockStatus["opened"] = 1] = "opened";
     BlockStatus[BlockStatus["checked"] = 2] = "checked";
 })(BlockStatus || (BlockStatus = {}));
+var GameStatus;
+(function (GameStatus) {
+    GameStatus[GameStatus["Running"] = 0] = "Running";
+    GameStatus[GameStatus["Finish"] = 1] = "Finish";
+    GameStatus[GameStatus["Fail"] = 2] = "Fail";
+})(GameStatus || (GameStatus = {}));
 var Point = (function () {
     function Point(x, y) {
         this.x = 0;
@@ -30,7 +31,7 @@ var Util = (function () {
 var Block = (function () {
     function Block() {
         this.findMines = 0;
-        this.status = BlockStatus.checked;
+        this.status = BlockStatus.closed;
         this.isMine = false;
         this.print = function () {
             console.log(this.status);
@@ -52,29 +53,69 @@ var Block = (function () {
 var Table = (function () {
     function Table(size) {
         var _this = this;
+        this.traceElements = function (callbackFunc) {
+            for (var y = 0; y < this.size.y; y++) {
+                for (var x = 0; x < this.size.x; x++) {
+                    callbackFunc(this.table[x][y], x, y);
+                }
+            }
+        };
+        this.getConvolution = function (x, y) {
+            var results = [];
+            var xpos = [x - 1, x, x + 1];
+            var ypos = [y - 1, y, y + 1];
+            for (var i = 0; i < xpos.length; i++) {
+                for (var j = 0; j < ypos.length; j++) {
+                    if (!(i == 1 && j == 1)) {
+                        var x = xpos[i];
+                        var y = ypos[j];
+                        if (this.invalidArray(x, y))
+                            results.push({ x: x, y: y });
+                    }
+                }
+            }
+            return results;
+        };
         this.findBlankBlock = function (x, y) {
             var _this = this;
-            if (this.table[x][y].status == BlockStatus.opened)
+            var block = this.table[x][y];
+            if (block.status == BlockStatus.opened) {
                 return;
-            if (this.table[x][y].isMine)
-                return;
-            this.table[x][y].open();
-            if (this.table[x][y].findMines == 0) {
-                var positions = this.GetConvolution(x, y);
+            }
+            if (!block.isMine) {
+                block.open();
+            }
+            if (block.findMines == 0) {
+                var positions = this.getConvolution(x, y);
                 positions.forEach(function (element) {
                     _this.findBlankBlock(element.x, element.y);
                 });
             }
         };
-        this.checkMineWith = function (x, y) {
+        this.checkFinished = function () {
+            var mineList = [];
+            this.traceElements(function (block, x, y) {
+                if (block.isMine)
+                    mineList.push(block);
+            });
+            var checkedList = [];
+            this.traceElements(function (block, x, y) {
+                if (block.status == BlockStatus.checked || block.status == BlockStatus.closed)
+                    checkedList.push(block);
+            });
+            if (checkedList.length == mineList.length) {
+                return true;
+            }
+            return false;
+        };
+        this.checkMineCount = function (x, y) {
             var _this = this;
             var xpos = [x - 1, x, x + 1];
             var ypos = [y - 1, y, y + 1];
-            //
             if (!this.table[x][y].isMine) {
                 return;
             }
-            var positions = this.GetConvolution(x, y);
+            var positions = this.getConvolution(x, y);
             positions.forEach(function (element) {
                 _this.table[element.x][element.y].findMines++;
             });
@@ -104,16 +145,14 @@ var Table = (function () {
         var mineMaxCount = (size.x * size.y * mineRatio) | 0;
         var mine = 0;
         while (mineMaxCount > mine) {
-            var x = Util.randomInt(size.x);
-            var y = Util.randomInt(size.y);
-            var pos1 = new Point(x, y);
-            var duple = false;
+            var pos = new Point(Util.randomInt(size.x), Util.randomInt(size.y));
+            var duplicated = false;
             points.forEach(function (obj, int) {
-                if (pos1.x == obj.x && pos1.y == obj.y)
-                    duple = true;
+                if (pos.x == obj.x && pos.y == obj.y)
+                    duplicated = true;
             });
-            if (!duple) {
-                points[mine] = pos1;
+            if (!duplicated) {
+                points[mine] = pos;
                 mine++;
             }
         }
@@ -122,30 +161,16 @@ var Table = (function () {
         });
         for (var i = 0; i < size.x; i++) {
             for (var j = 0; j < size.y; j++) {
-                this.checkMineWith(i, j);
+                this.checkMineCount(i, j);
             }
         }
     }
-    Table.prototype.GetConvolution = function (x, y) {
-        var results = [];
-        var xpos = [x - 1, x, x + 1];
-        var ypos = [y - 1, y, y + 1];
-        for (var i = 0; i < xpos.length; i++) {
-            for (var j = 0; j < ypos.length; j++) {
-                if (!(i == 1 && j == 1)) {
-                    var x = xpos[i];
-                    var y = ypos[j];
-                    if (this.invalidArray(x, y))
-                        results.push({ x: x, y: y });
-                }
-            }
-        }
-        return results;
-    };
     return Table;
 }());
 var World = (function () {
     function World() {
+        this.status = GameStatus.Running;
+        this.elementMap = [];
         this.attachElement = function (element, x, y) {
             var block = this.map.table[x][y];
             block.position = new Point(x, y);
@@ -157,11 +182,8 @@ var World = (function () {
         };
     }
     World.prototype.init = function (element) {
-        var tableSize = new Size();
-        tableSize.x = 8;
-        tableSize.y = 8;
+        var tableSize = new Point(8, 8);
         this.map = new Table(tableSize);
-        this.elementMap = [];
         for (var i = 0; i < tableSize.y; i++) {
             this.elementMap[i] = [];
         }
@@ -203,18 +225,17 @@ var World = (function () {
                 break;
             }
         }
-        console.log(statusclass);
     };
     World.prototype.onClick = function (element, evt) {
         switch (evt.button) {
             case 0:
-                var result = element.open();
-                if (result) {
-                    this.Finish(element);
+                if (element.findMines == 0 && !element.isMine) {
+                    this.map.findBlankBlock(element.position.x, element.position.y);
                 }
                 else {
-                    if (element.findMines == 0) {
-                        this.map.findBlankBlock(element.position.x, element.position.y);
+                    var result = element.open();
+                    if (result) {
+                        this.Failed(element);
                     }
                 }
                 break;
@@ -222,13 +243,20 @@ var World = (function () {
                 element.check();
                 break;
         }
+        if (this.map.checkFinished()) {
+            this.Finished();
+        }
     };
-    World.prototype.Finish = function (block) {
+    World.prototype.Failed = function (block) {
+        this.status == GameStatus.Fail;
+    };
+    World.prototype.Finished = function () {
+        this.status == GameStatus.Finish;
+        console.log("Finish");
     };
     return World;
 }());
-var world;
 function run() {
-    world = new World();
+    var world = new World();
     world.init(document.getElementById("container"));
 }

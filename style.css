@@ -1,19 +1,22 @@
 table {
     border-spacing:  0;
+    border: 1px solid black;
 }
 mindfinder, tr, td{
     border: 1px solid black;
 }
 
 .block{
-    width: 20px;
-    height: 20px;
+    width: 25px;
+    height: 25px;
+    text-align: center;
+    background: lightgray;
 }
 .closed{
 
 }
 .opened{
-
+    background: gray;
 }
 .checked{
     background: blue;
